@@ -33,7 +33,7 @@
 
 #define RANDOM_NUM_GENERATOR	"/dev/urandom"
 #define INITIATOR_NAME_MAXLEN	256
-#define IQN_PREFIX "iqn.2003-01.org.linux-iscsi"
+#define IQN_PREFIX "iqn.2012-04.org.ovios"
 
 int
 main(int argc, char *argv[])
