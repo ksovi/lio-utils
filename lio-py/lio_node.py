@@ -942,11 +942,14 @@ def lio_target_list_endpoints(option, opt_str, value, parser):
 					port_link = port_dir + "/" + port
 					if not os.path.islink(port_link):
 						continue
-
-					sourcelink = os.readlink(port_link)
+                                        p = os.open(port_link+'/'+'udev_path', 0)
+                                        real_lunname = os.read(p, 256)
+                                        os.close(p)
+					# sourcelink = os.readlink(port_link)
 					# Skip over ../../../../../ in sourcelink"		
-					print "                 \-------> " + lun + "/" + port + " -> " + sourcelink[18:]
-					
+					# print "                 \-------> " + lun + "/" + port + " -> " + sourcelink[18:]
+					# For OviOS we only print the pool/lun udev path. 
+					print "                 \-------> " + real_lunname.replace('/dev/zvol', '')
 
 	return
 
