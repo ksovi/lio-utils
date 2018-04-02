@@ -1,0 +1,47 @@
+#!/ms/dist/python/PROJ/core/2.7.3/bin/python
+import os
+import cmd
+import readline
+import sys
+
+class OSshell(cmd.Cmd):
+    "Illustrate the base class method use."
+
+    def __init__(self, intro="Demo of pyton cli", prompt='ovi:# '):
+        cmd.Cmd.__init__(self)
+        self.intro=intro
+        self.prompt=prompt
+
+    def emptyline(self):
+        pass
+
+    def do_ls(self, line):
+        "List current dir"
+        cmd = 'ls '+line
+        print "LINE: "+line
+        output, err = mymod.run_cmd(cmd)
+        if err:
+            print("Failed with error: %s") %err
+        else:
+            print(output)
+
+    def do_info(self, line):
+        "Print some random text"
+        mymod.info()
+
+#    def do_help(self, arg):
+#        "help topic for cmds"
+
+    def do_EOF(self, line):
+        pass
+
+    def do_end(self, line):
+        "Exit"
+        return True
+
+    do_EOF = do_end
+
+if __name__ == '__main__':
+    sys.path.append('./')
+    import mymod
+    OSshell().cmdloop('Illustrating the methods of cmd.Cmd')
