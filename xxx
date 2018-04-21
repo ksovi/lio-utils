@@ -1,47 +1,139 @@
-#!/ms/dist/python/PROJ/core/2.7.3/bin/python
-import os
-import cmd
-import readline
-import sys
+// this is a GO Lang implementation of the python script to check cachefs based on ars.cache file
+//
+package main
+import (
+    "bufio"
+    "fmt"
+    "io"
+    "strings"
+    "syscall"
+    "strconv"
+    //"io/ioutil"
+    "os"
+    "flag"
+)
 
-class OSshell(cmd.Cmd):
-    "Illustrate the base class method use."
+func check(e error) {
+    if e != nil {
+        fmt.Println(e)
+        os.Exit(12)
+    }
+}
 
-    def __init__(self, intro="Demo of pyton cli", prompt='ovi:# '):
-        cmd.Cmd.__init__(self)
-        self.intro=intro
-        self.prompt=prompt
+func RunProgram(arsfile , status string) {
+    // define a slice here that will contain possible datasets that aren't available
+    broken_datasets := make([] string, 0)
 
-    def emptyline(self):
-        pass
+    var totalSpace, totalAvailable float64
+    totalSpace = 0
+    totalAvailable = 0
 
-    def do_ls(self, line):
-        "List current dir"
-        cmd = 'ls '+line
-        print "LINE: "+line
-        output, err = mymod.run_cmd(cmd)
-        if err:
-            print("Failed with error: %s") %err
-        else:
-            print(output)
+    fp, err := os.Open(arsfile)
+    check(err)
+    defer fp.Close()
+    r := bufio.NewReaderSize(fp, 4*1024)
+    line, isPrefix, err := r.ReadLine()
+    for err == nil && !isPrefix {
+        s := string(line)
+        GetStatus(s, status, &totalSpace , &totalAvailable, &broken_datasets)
+        line, isPrefix, err = r.ReadLine()
+    }
+    fmt.Printf("Total Space: %.1f GB | TotalAvailable: %.1f GB" , totalSpace, totalAvailable)
+    fmt.Println("")
 
-    def do_info(self, line):
-        "Print some random text"
-        mymod.info()
+    if isPrefix {
+        fmt.Println("buffer size to small")
+        return
+    }
+    if err != io.EOF {
+        fmt.Println(err)
+        return
+    }
+    if len(broken_datasets) > 0 {
+        fmt.Println(" ")
+        fmt.Println("Failed to get space usage for the following FS: ")
+        fmt.Println("------------------------------------------------ ")
+        for _, i := range broken_datasets {
+            fmt.Println(i)
+        }
+    }
+}
 
-#    def do_help(self, arg):
-#        "help topic for cmds"
+func GetStatus(line, status string, totalSpace, totalAvailable *float64, broken_datasets *[]string) {
+    if len(line) < 1 {
+        // this is an empty line
+        return
+    }
 
-    def do_EOF(self, line):
-        pass
+    var filesystem string
+    var state string
 
-    def do_end(self, line):
-        "Exit"
-        return True
+    if ( string(line[0]) == "/" ) {
+        state  = "ACTIVE"
+        filesystem = string(line[0:])
+    } else {
+        state = "INACTIVE"
+        filesystem = string(line[1:])
+        filesystem := strings.TrimSpace(filesystem)
+        // if filesystem starts with / this is a valid path
+        if !strings.HasPrefix(filesystem, "/") {
+            return
+        }
+    }
 
-    do_EOF = do_end
+    if status == "active" {
+        if state == "INACTIVE" {
+            return
+        }
+    }
+    if status == "inactive" {
+        if state == "ACTIVE" {
+            return
+        }
+    }
+    filesystem = strings.TrimSpace(filesystem)
+    var stat syscall.Statfs_t
+    syscall.Statfs(filesystem, &stat)
+    var mavail string
+    var mfull string
+    mfull =" GB"
+    mavail = " GB"
+    gbsizeAvailable := float64(stat.Bavail * uint64(stat.Bsize))/1024/1024/1024
+    *totalAvailable += gbsizeAvailable
+    gbsizeAvailableStr := strconv.FormatFloat(gbsizeAvailable, 'f', 1, 64)
+    if len(gbsizeAvailableStr) > 5 {
+        gbsizeAvailable = gbsizeAvailable/1024
+        mavail = " TB"
+    }
 
-if __name__ == '__main__':
-    sys.path.append('./')
-    import mymod
-    OSshell().cmdloop('Illustrating the methods of cmd.Cmd')
+    gbsizeTotal := float64(stat.Bsize * int64(stat.Blocks))/1024/1024/1024
+    *totalSpace += gbsizeTotal
+    gbsizeTotalStr := strconv.FormatFloat(gbsizeTotal, 'f', 1, 64)
+    if len(gbsizeTotalStr) > 5 {
+        gbsizeTotal = gbsizeTotal/1024
+        mfull = " TB"
+    }
+
+    _, error := os.Stat(filesystem)
+    if error != nil {
+        errorstr := error.Error()
+        *broken_datasets = append(*broken_datasets, "FS:  "+filesystem+" ==>> With ERROR: "+errorstr)
+        return
+    }
+
+    fmt.Printf("FS: %-36s | STATE: %-16s | AVAIL: %.1f %-16s | TOTAL: %.1f %-16s" , filesystem, state, gbsizeAvailable, mavail, gbsizeTotal, mfull)
+    fmt.Println("")
+
+}
+
+func main() {
+    arsfilePtr := flag.String("arsfile", "/opt/ondemand/config/ars.cache", "Path to arsfile.")
+    statePtr := flag.String("status", "all", "Print only active, inactive OR all filesystems from arsfile.")
+    flag.Parse()
+    arsfile := *arsfilePtr
+    status := *statePtr
+    if ( status != "active" && status != "inactive"  && status != "all") {
+        fmt.Println("-status should be 'active' 'inactive' or 'all'")
+        os.Exit(10)
+     }
+    RunProgram(arsfile, status)
