@@ -1,1 +1,0 @@
-vms=(`cat vms.out`) ; vms_new=(`cat vms_new.out`) ; if [[ ${#vms_new[@]} != ${#vms[@]} ]]; then echo "The no of vms is not equal to the number of new vms" ; else  for v in ${!vms[@]}; do echo "corresponding vm for ${vms[$v]} is: ${vms_new[$v]}"; done; fi
